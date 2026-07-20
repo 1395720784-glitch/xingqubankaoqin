@@ -1,0 +1,17 @@
+node_modules
+dist
+.vite
+*.local
+*.py
+*.pyc
+.python
+output
+*.xlsx
+*.docx
+*.pptx
+*.bat
+requirements.txt
+*.html
+!index.html
+__pycache__
+README.md
