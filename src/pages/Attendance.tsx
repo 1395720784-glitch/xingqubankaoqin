@@ -1,197 +1,112 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useStore } from '@/store/useStore';
-import { STATUS_LABELS, type AttendanceStatus } from '@/types';
-import { Check, X, Clock, FileText, RotateCcw } from 'lucide-react';
-
-const statusButtons: { status: AttendanceStatus; icon: typeof Check; label: string; activeClass: string }[] = [
-  { status: 'present', icon: Check, label: '出勤', activeClass: 'bg-emerald-500 text-white' },
-  { status: 'absent', icon: X, label: '缺勤', activeClass: 'bg-red-500 text-white' },
-  { status: 'late', icon: Clock, label: '迟到', activeClass: 'bg-amber-500 text-white' },
-  { status: 'leave', icon: FileText, label: '请假', activeClass: 'bg-blue-500 text-white' },
-];
+import { DANCE_STYLES } from '@/types';
+import { Check, X, RotateCcw } from 'lucide-react';
 
 export default function Attendance() {
-  const classes = useStore((s) => s.classes);
   const students = useStore((s) => s.students);
   const attendance = useStore((s) => s.attendance);
-  const addAttendance = useStore((s) => s.addAttendance);
-  const updateAttendance = useStore((s) => s.updateAttendance);
+  const markAttendance = useStore((s) => s.markAttendance);
+  const unmarkAttendance = useStore((s) => s.unmarkAttendance);
 
-  const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || '');
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
+  const [filterStyle, setFilterStyle] = useState('全部');
 
-  const classStudents = useMemo(
-    () => students.filter((s) => s.enrolledClasses.includes(selectedClassId)),
-    [students, selectedClassId]
-  );
+  const activeStudents = students.filter((s) => {
+    if (s.status !== '在读') return false;
+    if (filterStyle !== '全部' && s.danceStyle !== filterStyle) return false;
+    return true;
+  });
 
-  const todayRecords = useMemo(
-    () => attendance.filter((r) => r.classId === selectedClassId && r.date === date),
-    [attendance, selectedClassId, date]
-  );
+  const todayRecords = attendance.filter((r) => r.date === date);
+  const todayIds = new Set(todayRecords.map((r) => r.studentId));
 
-  const hasRecords = todayRecords.length > 0;
-
-  const getStatus = (studentId: string): AttendanceStatus => {
-    const record = todayRecords.find((r) => r.studentId === studentId);
-    return record?.status || 'present';
-  };
-
-  const getRecordId = (studentId: string): string | undefined => {
-    return todayRecords.find((r) => r.studentId === studentId)?.id;
-  };
-
-  const handleInit = () => {
-    const records = classStudents.map((s) => ({
-      id: `${selectedClassId}-${s.id}-${date}`,
-      classId: selectedClassId,
-      studentId: s.id,
-      date,
-      status: 'present' as AttendanceStatus,
-      remark: '',
-    }));
-    addAttendance(records);
-  };
-
-  const handleToggle = (studentId: string, newStatus: AttendanceStatus) => {
-    const recordId = getRecordId(studentId);
-    if (recordId) {
-      updateAttendance(recordId, newStatus);
+  const handleToggle = (studentId: string) => {
+    if (todayIds.has(studentId)) {
+      const record = todayRecords.find((r) => r.studentId === studentId);
+      if (record) unmarkAttendance(record.id);
+    } else {
+      markAttendance(studentId, date);
     }
   };
 
-  const handleReset = () => {
-    todayRecords.forEach((r) => updateAttendance(r.id, 'present'));
+  const handleAllPresent = () => {
+    activeStudents.forEach((s) => {
+      if (!todayIds.has(s.id)) markAttendance(s.id, date);
+    });
   };
 
-  const stats = useMemo(() => {
-    if (!hasRecords) return null;
-    const total = todayRecords.length;
-    const present = todayRecords.filter((r) => r.status === 'present').length;
-    const absent = todayRecords.filter((r) => r.status === 'absent').length;
-    const late = todayRecords.filter((r) => r.status === 'late').length;
-    const leave = todayRecords.filter((r) => r.status === 'leave').length;
-    return { total, present, absent, late, leave };
-  }, [todayRecords, hasRecords]);
+  const handleReset = () => {
+    todayRecords.forEach((r) => unmarkAttendance(r.id));
+  };
+
+  const checkedCount = activeStudents.filter((s) => todayIds.has(s.id)).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-slate-800">考勤打卡</h2>
-        <p className="text-sm text-slate-500 mt-0.5">选择班级，记录学生出勤情况</p>
+        <h2 className="text-2xl font-bold text-slate-800">上课打卡</h2>
+        <p className="text-sm text-slate-500 mt-0.5">点击学生打卡，自动消耗 1 天课时</p>
       </div>
 
-      {/* Select class + date */}
       <div className="flex flex-wrap gap-3">
-        <select
-          value={selectedClassId}
-          onChange={(e) => setSelectedClassId(e.target.value)}
-          className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200"
-        >
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm" />
+        <select value={filterStyle} onChange={(e) => setFilterStyle(e.target.value)} className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm">
+          <option>全部</option>
+          {DANCE_STYLES.map((d) => <option key={d} value={d}>{d}</option>)}
         </select>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-200"
-        />
       </div>
 
-      {/* Stats bar */}
-      {stats && (
-        <div className="flex gap-4 flex-wrap">
-          <div className="bg-white rounded-xl border border-slate-100 px-4 py-2.5 flex items-center gap-2">
-            <span className="text-xs text-slate-400">总人数</span>
-            <span className="text-sm font-bold text-slate-700">{stats.total}</span>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-100 px-4 py-2.5 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-xs text-slate-400">出勤</span>
-            <span className="text-sm font-bold text-emerald-600">{stats.present}</span>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-100 px-4 py-2.5 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="text-xs text-slate-400">缺勤</span>
-            <span className="text-sm font-bold text-red-600">{stats.absent}</span>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-100 px-4 py-2.5 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-amber-500" />
-            <span className="text-xs text-slate-400">迟到</span>
-            <span className="text-sm font-bold text-amber-600">{stats.late}</span>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-100 px-4 py-2.5 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-xs text-slate-400">请假</span>
-            <span className="text-sm font-bold text-blue-600">{stats.leave}</span>
+      <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-3">
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-slate-600">已打卡 <span className="font-bold text-rose-600">{checkedCount}</span> / {activeStudents.length} 人</span>
+          <div className="w-32 bg-slate-100 rounded-full h-2">
+            <div className="bg-rose-400 h-2 rounded-full transition-all" style={{ width: `${activeStudents.length > 0 ? (checkedCount / activeStudents.length) * 100 : 0}%` }} />
           </div>
         </div>
-      )}
+        <div className="flex gap-2">
+          <button onClick={handleAllPresent} className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-medium hover:bg-rose-100 transition-colors">
+            <Check className="w-3 h-3" /> 全部打卡
+          </button>
+          <button onClick={handleReset} className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-xs font-medium hover:bg-slate-200 transition-colors">
+            <RotateCcw className="w-3 h-3" /> 重置
+          </button>
+        </div>
+      </div>
 
-      {/* Student list */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-        {!hasRecords ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-orange-400" />
-            </div>
-            <p className="text-slate-600 font-medium mb-1">开始考勤打卡</p>
-            <p className="text-sm text-slate-400 mb-4">初始化后默认为全部出勤，可点击切换状态</p>
-            <button
-              onClick={handleInit}
-              disabled={classStudents.length === 0}
-              className="px-6 py-2.5 bg-gradient-to-r from-orange-400 to-rose-500 text-white rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-orange-200 transition-all disabled:opacity-50"
-            >
-              {classStudents.length === 0 ? '该班级暂无学生' : '初始化考勤表'}
-            </button>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {activeStudents.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            <Check className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p>该日期没有在读学生</p>
           </div>
         ) : (
-          <>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-              <span className="text-sm font-medium text-slate-600">学生列表</span>
-              <button onClick={handleReset} className="flex items-center gap-1 text-xs text-slate-400 hover:text-orange-500 transition-colors">
-                <RotateCcw className="w-3 h-3" />
-                重置为全部出勤
-              </button>
-            </div>
-            <div className="divide-y divide-slate-50">
-              {classStudents.map((student) => {
-                const currentStatus = getStatus(student.id);
-                return (
-                  <div key={student.id} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-300 to-rose-400 flex items-center justify-center text-white text-xs font-bold">
-                        {student.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-700">{student.name}</p>
-                        <p className="text-[10px] text-slate-400">{student.age}岁</p>
-                      </div>
+          <div className="divide-y divide-slate-50">
+            {activeStudents.map((s) => {
+              const isChecked = todayIds.has(s.id);
+              const remaining = s.totalDays - s.usedDays;
+              return (
+                <div key={s.id} onClick={() => handleToggle(s.id)} className={`flex items-center justify-between px-5 py-3.5 cursor-pointer transition-all hover:bg-slate-50 ${isChecked ? 'bg-emerald-50/30' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isChecked ? 'bg-emerald-500 text-white scale-110' : 'bg-slate-100 text-slate-400'}`}>
+                      {isChecked ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
                     </div>
-                    <div className="flex gap-1.5">
-                      {statusButtons.map((btn) => (
-                        <button
-                          key={btn.status}
-                          onClick={() => handleToggle(student.id, btn.status)}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                            currentStatus === btn.status
-                              ? btn.activeClass + ' shadow-sm'
-                              : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                          }`}
-                        >
-                          <btn.icon className="w-3 h-3" />
-                          {btn.label}
-                        </button>
-                      ))}
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{s.name}</p>
+                      <p className="text-[10px] text-slate-400">{s.danceStyle} · {s.planType} · {s.usedDays}/{s.totalDays}天</p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${remaining <= 5 ? 'text-red-500' : remaining <= 15 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                      {isChecked ? `剩余 ${remaining - 1} 天` : `剩余 ${remaining} 天`}
+                    </p>
+                    {remaining <= 0 && <p className="text-[10px] text-red-400">课时已用完</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
