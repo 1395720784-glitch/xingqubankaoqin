@@ -2,13 +2,22 @@ import { useState } from 'react';
 import { useStore } from '@/store/useStore';
 import type { Student, DanceStyle, PlanType } from '@/types';
 import { DANCE_STYLES, PLAN_TYPES, PLAN_DAYS } from '@/types';
-import { Plus, Edit2, Trash2, Search, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit2, Trash2, Search, X, ClipboardCheck } from 'lucide-react';
 
 export default function Students() {
+  const navigate = useNavigate();
   const students = useStore((s) => s.students);
+  const attendance = useStore((s) => s.attendance);
   const addStudent = useStore((s) => s.addStudent);
   const updateStudent = useStore((s) => s.updateStudent);
   const deleteStudent = useStore((s) => s.deleteStudent);
+  const markAttendance = useStore((s) => s.markAttendance);
+  const unmarkAttendance = useStore((s) => s.unmarkAttendance);
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayRecords = attendance.filter((r) => r.date === today);
+  const todayIds = new Set(todayRecords.map((r) => r.studentId));
 
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('全部');
@@ -61,6 +70,15 @@ export default function Students() {
 
   const handleDelete = (id: string) => {
     if (window.confirm('确定删除该学生吗？')) deleteStudent(id);
+  };
+
+  const handleCheckIn = (studentId: string) => {
+    if (todayIds.has(studentId)) {
+      const record = todayRecords.find((r) => r.studentId === studentId);
+      if (record) unmarkAttendance(record.id);
+    } else {
+      markAttendance(studentId, today);
+    }
   };
 
   return (
@@ -134,7 +152,18 @@ export default function Students() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === '在读' ? 'bg-emerald-50 text-emerald-600' : s.status === '已到期' ? 'bg-slate-100 text-slate-500' : 'bg-red-50 text-red-500'}`}>{s.status}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          onClick={() => handleCheckIn(s.id)}
+                          className={`p-1.5 rounded-lg transition-all ${
+                            todayIds.has(s.id)
+                              ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                              : 'hover:bg-emerald-50 text-slate-400 hover:text-emerald-600'
+                          }`}
+                          title={todayIds.has(s.id) ? '已打卡，点击取消' : '上课打卡'}
+                        >
+                          <ClipboardCheck className="w-3.5 h-3.5" />
+                        </button>
                         <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg hover:bg-slate-100"><Edit2 className="w-3.5 h-3.5 text-slate-400" /></button>
                         <button onClick={() => handleDelete(s.id)} className="p-1.5 rounded-lg hover:bg-red-50"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
                       </div>
