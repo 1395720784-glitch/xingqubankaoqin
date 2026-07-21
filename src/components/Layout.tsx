@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, ClipboardCheck, FileText, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { LayoutDashboard, Users, ClipboardCheck, FileText, Menu, X, Download, Share2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: '工作台' },
@@ -11,6 +11,39 @@ const navItems = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    // 检测 iOS
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+
+    // 监听 PWA 安装事件（Android/Chrome）
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    // 检查是否已经安装
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setShowInstallBanner(false);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === 'accepted') {
+      setShowInstallBanner(false);
+    }
+    setInstallPrompt(null);
+  };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-rose-50">
@@ -86,6 +119,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 overflow-auto lg:pt-0 pt-14">
         <div className="max-w-6xl mx-auto p-4 lg:p-6">{children}</div>
       </main>
+
+      {showInstallBanner && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 shadow-lg px-4 py-3 safe-bottom">
+          <div className="max-w-6xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center flex-shrink-0">
+                <Download className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">添加到主屏幕</p>
+                <p className="text-xs text-slate-400">
+                  {isIOS ? '点分享按钮 → 添加到主屏幕' : '像 App 一样使用，无需每次打开浏览器'}
+                </p>
+              </div>
+            </div>
+            {isIOS ? (
+              <div className="flex items-center gap-1 text-rose-500 text-xs font-medium">
+                <Share2 className="w-4 h-4" />
+                <span>分享</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleInstall}
+                className="px-4 py-2 bg-gradient-to-r from-rose-400 to-pink-500 text-white rounded-xl text-sm font-medium hover:shadow-lg transition-all whitespace-nowrap"
+              >
+                一键安装
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
