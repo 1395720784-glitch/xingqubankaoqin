@@ -1,15 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Student, AttendanceRecord } from '@/types';
+import type { Student, AttendanceRecord, Plan } from '@/types';
 import { mockStudents, mockAttendance } from '@/data/mockData';
+import { DEFAULT_PLANS } from '@/types';
 
 interface AppState {
   students: Student[];
   attendance: AttendanceRecord[];
+  plans: Plan[];
 
   addStudent: (s: Student) => void;
   updateStudent: (s: Student) => void;
   deleteStudent: (id: string) => void;
+
+  addPlan: (p: Plan) => void;
+  updatePlan: (p: Plan) => void;
+  deletePlan: (id: string) => void;
 
   markAttendance: (studentId: string, date: string) => void;
   unmarkAttendance: (id: string) => void;
@@ -22,6 +28,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       students: mockStudents,
       attendance: mockAttendance,
+      plans: DEFAULT_PLANS,
 
       addStudent: (s) => set((state) => ({ students: [...state.students, s] })),
       updateStudent: (s) =>
@@ -32,6 +39,16 @@ export const useStore = create<AppState>()(
         set((state) => ({
           students: state.students.filter((x) => x.id !== id),
           attendance: state.attendance.filter((x) => x.studentId !== id),
+        })),
+
+      addPlan: (p) => set((state) => ({ plans: [...state.plans, p] })),
+      updatePlan: (p) =>
+        set((state) => ({
+          plans: state.plans.map((x) => (x.id === p.id ? p : x)),
+        })),
+      deletePlan: (id) =>
+        set((state) => ({
+          plans: state.plans.filter((x) => x.id !== id),
         })),
 
       markAttendance: (studentId, date) => {
